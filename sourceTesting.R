@@ -1,0 +1,1 @@
+binAvg = binMomentAverages(rdaLocs)
