@@ -101,15 +101,6 @@ tetrisClearsTs <- function(rda){
   return(rda$ts[clearTss])
 }
  
-#In one example, I ran this for different exclusiongs
-#This tested to make sure we were indeed getting all the non-tetris clears
-#287 total
-#287-255 = 32 tetris
-#287-261 = 26 3-line clears
-#287-207 = 80 2-line clears
-#287-138 = 149 1-line clears
-#32+26+80+149 indeed is 287, so we're getting all of them yeet
-
 #Get when new zoids appear
 #Input: rda type session data with: 
 #        GAME_EVENT data

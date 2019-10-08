@@ -25,18 +25,21 @@
 remote_run = parsed = F
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-source("MyrdaTetrisLog2.R")
+source("MyrdaTetrisLog2.R") #may have to run this twice (dependencies are weird)
 source("getGameBaselines.R")
-require(ggplot2)
+req.load("ggplot2")
+req.load('svglite')
 
 
-inFolder = "D:/_School/RQE/DataandAnalysis"
+inFolder = dirname(getwd())
 new_data <- paste(inFolder,"QuickParseOuts1",sep="/")
 data_folder <- paste(inFolder,"PopStudyData",sep="/")
 
 ######## Bin stuff is far below
 
 #Locate SIDs, folders, and data files
+#Skip these if I already have the data in RDAs
+{
 allFolders = list.files(data_folder)
 nS = length(allFolders)
 bins = rep(0,nS)
@@ -50,14 +53,17 @@ for (i in 1:nS){
   
   subject.id = substr(f,1,second2-1)
   ids[i] = subject.id
+  
+  rdsFile = file.path(new_data, "rds", sprintf("%s.a1.rds", subject.id))
+  rdsFiles[i] = rdsFile
 }
-
-
+}
 #make all the RDS so I can read right into RDA later
 for (i in 1:nS){
+  
+  rdsFile = rdsFiles[i]
   subject.id = ids[i]
-  rdsFile = file.path(new_data, "rds", sprintf("%s.a1.rds", subject.id)) #TODO: I fucked w/ some settings and may need to fix this
-  rdsFiles[i] = rdsFile
+  
   okay = NA #bs variable I have to make because commands in error section do not run
   if (!file.exists(rdsFile)){ #If rds file does not exist, we need to make it
     fi = allFolders[i]
@@ -70,7 +76,7 @@ for (i in 1:nS){
       
       rdaTetrisLog2(sid=subject.id, f=filename, meta2=F)
       print(paste("Rds file for",subject.id,"has been created.",nS-i,"remain"))
-    
+      
     }, error = function(e) {
       if(e=="subscript out of bounds"){
         print(paste("Complete reads not possible on",subject.id,nS-i,"remain"))
@@ -79,7 +85,7 @@ for (i in 1:nS){
       }
       #Assignments here will not run. Only prints, it seems
       #bins[i] <- NA
-    
+      
     }, finally = {
       options(warn = oldw)
     })
@@ -95,164 +101,166 @@ for (i in 1:nS){
 #So we compute average shit for each subject, and we can do this one feature at a time
 source("summarizeFeature.R")
 source("getTetrisMoments.R")
-#tetris = tetrisClearsTs(rda),
-#nontetris = nonTetrisClearsTs(rda),
-#newZoid = newZoid(rda),
-#iZoid = IPieceAppears(rda),
-#start = starts(rda))
 # target = 'tetris'
 # target = 'nontetris'
-#target = 'newZoid'
 # target = 'iZoid'
 #target = 'start'
- target = 'press'
+#target = 'newZoid'
+target = 'press'
 
+graphOne <- function(momeWindows,lmax=30,SID){
+  momeWindows = subset(momeWindows,levels<=lmax)
+  means = lapply(momeWindows[,1:momeLen],FUN = function(x){mean(x)})
+  sds = lapply(momeWindows[,1:momeLen],FUN = function(x){sd(x)})
+  momeDF <- data.frame(xs = (1:momeLen-before)*4,
+                       means = unlist(means,use.names = F),
+                       sds = unlist(sds,use.names = F))
+  bin = max(which(momeWindows$crit[1]>=binEdges))
+  #momePlot = ggplot(data=momeDF, aes(x=xs,y=means)) + geom_point() + labs(title=paste(target,SID,"level <=",lmax,"n =",length(momeWindows$levels),"bin = ",bin),x="ms after stimulus onset",y="difference from baseline pupil diameter (mm)",color="Expertise \nLevel") + geom_errorbar(aes(ymin=means-sds,ymax=means+sds))
+  momePlot = ggplot(data=momeDF, aes(x=xs,y=means)) + geom_point() + labs(title=paste(target,SID,"level <=",lmax,"n =",length(momeWindows$levels),"bin = ",bin),x="ms after stimulus onset",y="Pupil diameter (a.u.)",color="Expertise \nLevel") + geom_errorbar(aes(ymin=means-sds,ymax=means+sds)) + ylim(min=-100,max=20)
+  #add parentheses around momePlot to get the image to print
+  
+  ggsave(filename=paste(paste(inFolder,"pictures",SID,sep="/"),".svg",sep=""), plot = momePlot)
+  
+}
+lmax=30
 
- 
-#Run this beeboop to generate rds of moments
- #with entries of all the moments in it
- #entries contain:
- #  all of window
- #  SID
- #  criterion
-{dataOuts = paste(inFolder,"moments",target,sep="/")
-  before=100
-  after=100
-  momeLen = before + after + 1
-   for (i in 1:nS){
-     rdaLoc = rdsFiles[i]
-     subject.id = ids[i]
-     toLoc = paste(dataOuts, basename(rdaLoc),sep="/")
-     if(file.exists(rdaLoc)){
-       if(!file.exists(toLoc)){
-         rda = readRDS(rdaLoc)
-         
-         subject.windows = momentWindows(rda,target,before=before,after=after)
-         
-         print(paste(subject.id,"saved",i/nS))
-         saveRDS(subject.windows,file=toLoc)
-       } else {
-         print(paste(toLoc, "already exists"))
-       }
-     }
-   }
- }
- 
- ####Bin and save in folder w/moment data
- #TODO: make this happen by level
-{
-# binEdges = #c(0,7400,13700,21600,31000,50000,70000)
-binEdges = c(0,15000,21600,31000,70000)
+binEdges = c(0,15000,21600,31000,70000) # binEdges = #c(0,7400,13700,21600,31000,50000,70000) #hardcoded options
+# {k = 4
+# cd = classIntervals(sort(crits),k,style="jenks")
+# binEdges = cd$brks
+# }
 nBins = length(binEdges)-1
-dtn = c(-before:after,"bin")
-momes = data.frame(matrix(ncol=momeLen+1,nrow=0))
-names(momes) = dtn
-compositeLoc = paste(dataOuts,"composite",sep="/")
-if(file.exists(compositeLoc)) {
-  print(paste("Composite file for",target,"already exists. Now loading"))
-  momes = readRDS(compositeLoc)
-  } else {
-   for (i in 1:nS){
-     rdaLoc = rdsFiles[i]
-     subject.id = ids[i]
-     momeLoc = paste(dataOuts, basename(rdaLoc),sep="/")
-     if(file.exists(rdaLoc)){
-       if(file.exists(momeLoc)){
-         rda = readRDS(rdaLoc)
-         bin = max(which(binEdges<rda$criterion[1]))
-         
-         #Now either impute bin to all members and make a super long thingy or make separate structs for all the bins
-         windows = readRDS(momeLoc)
-         
-         if(dim(windows)!=0){
-           windows$bin = bin
-           names(windows) = dtn
-           
-           momes = rbind(momes,windows)
-         }
+before=100
+after=100
+dtn = c(-before:after,"level","bin") #TODO: this dtn stuff should be in the function for making the window (esp the part in the for loop)
+
+#Run this beeboop to generate rds of moments
+#with entries of all the moments in it
+#entries contain:
+#  all of window
+#  SID
+#  criterion
+#  level
+# has a very nice and interesting graph
+#Also make pictures
+{dataOuts = paste(inFolder,"moments",target,sep="/")
+  momeLen = before + after + 1
+  for (i in 1:nS){
+    rdaLoc = rdsFiles[i]
+    subject.id = ids[i]
+    toLoc = paste(dataOuts, basename(rdaLoc),sep="/")
+    if(file.exists(rdaLoc)){
+      if(!file.exists(toLoc)){
+        rda = readRDS(rdaLoc)
         
-         print(paste("added",subject.id,"to the list"))
-         
-         
-       } else {
-         print(paste(toLoc, "does not exist!"))
-       }
-     }
-   }
-   saveRDS(momes,file=compositeLoc)
-   print(paste(target,"Saved successfully"))
- }
+        momeWindows = momentWindows(rda,target,before=before,after=after)
+                  
+        saveRDS(momeWindows,file=toLoc)
+        print(paste(subject.id,"saved",i/nS))
+      } else {
+        momeWindows = readRDS(toLoc)
+        graphOne(momeWindows,lmax=lmax,SID=subject.id)
+        
+        print(paste(toLoc, "already exists"))
+      }
+    }
+  }
+}
+
+
+
+
+####Bin and save in folder w/moment data
+{
+  momes = data.frame(matrix(ncol=momeLen+2,nrow=0))#momeLen +1 for bin +1 for level
+  names(momes) = dtn
+  compositeLoc = paste(dataOuts,"composite",sep="/")
+  if(file.exists(compositeLoc)) {
+    print(paste("Composite file for",target,"already exists. Now loading"))
+    momes = readRDS(compositeLoc)
+  } else {
+    for (i in 1:nS){
+      rdaLoc = rdsFiles[i]
+      subject.id = ids[i] #TODO: clean up rdaLoc and extra statements here
+      momeLoc = paste(dataOuts, basename(rdaLoc),sep="/")
+      if(file.exists(rdaLoc)){
+        if(file.exists(momeLoc)){
+          
+          windows = readRDS(momeLoc)
+
+          
+          if(dim(windows)!=0){ #TODO: this check works, but yields a warning
+            bin = max(which(windows$crit[1]>=binEdges))
+            windows$crit = bin #TODO: this is kinda a lie 
+            names(windows) = dtn
+            momes = rbind(momes,windows)
+          }
+          
+          #print(paste("added",subject.id,"to the list"))
+          
+          
+        } else {
+          print(paste(toLoc, "does not exist!"))
+        }
+      }
+    }
+    saveRDS(momes,file=compositeLoc)
+    print(paste(target,"Saved successfully"))
+  }
 }
 
 
 #Real dumb. Just gonna try to make a long list of all the things to ggplot
-momes = momes[1:1000]
- momeSplit = split(momes,f=momes$bin)
- 
-
+#run averages and make graph
+{
+momeSplit = subset(momes,level<=lmax)
+momeSplit = split(momeSplit,f=momeSplit$bin) 
+#momeSplit = split(momes,f=momes$level)
+nConds = length(momeSplit)
 
 means = lapply(momeSplit,FUN = function(x){lapply(x[,1:momeLen],FUN = function(y)mean(y))})
 sds = lapply(momeSplit,FUN = function(x){lapply(x[,1:momeLen],FUN = function(y)sd(y))})
 conds = c()
-for (b in 1:nBins){
+for (b in 1:nConds){
   conds = c(conds, rep(b,momeLen))
 }
 
-momeDF <- data.frame(xs = rep((1:momeLen-before),nBins)*4,
+momeDF <- data.frame(xs = rep((1:momeLen-before),nConds)*4,
                      means = unlist(means,use.names = F),
                      sds = unlist(sds,use.names = F),
                      cond = conds)
 
-cc <- scales::seq_gradient_pal("red", "blue", "Lab")(seq(0,1,length.out=nBins))
+cc <- scales::seq_gradient_pal("red", "blue", "Lab")(seq(0,1,length.out=nConds))
 
 (momePlot = ggplot(data=momeDF, aes(x=xs,y=means,color=factor(cond)))
   + geom_point() + scale_color_manual(values = cc)
-  + labs(title=target,x="ms after stimulus onset",y="difference from baseline pupil diameter (mm)",color="Expertise \nLevel"))
+  + labs(title=paste(target,"where level <=",lmax),x="ms after key press",y="Pupil diameter (a.u.)",color="Expertise \nLevel"))
+} 
 
 (momePlot = ggplot(data=momeDF, aes(x=xs,y=means,color=factor(cond)))
   + geom_point() + scale_color_manual(values = cc)
   + geom_errorbar(aes(ymin=means-sds,ymax=means+sds))
-  + labs(title=target,x="ms after stimulus onset",y="difference from baseline pupil diameter (mm)",color="Expertise \nLevel"))
+  + labs(title=paste(target,"where level <=",lmax),x="ms after key press",y="Pupil diameter (a.u.)",color="Expertise \nLevel"))
 
 
- {#Running this beeboop to generate plotting data
-#Now read them all in again into one big structure so we can do some ez statistics
-#names = c(-10:100,"peak","latency","bin","n")
-
-#Now that it's all read into dt, we can do math and plot things
-#mean of moments, peak, and latency, sorted by bin #
-mems = dt[, lapply(.SD,FUN = function(x){ mean(x,na.rm = TRUE)}), by=bin, .SDcols=1:113]
-setkey(mems,bin)
-mems = mems[sort(bin)]
-#number of occurences of each event, sorted by bin #
-eachN = dt[, lapply(.SD, sum),by=bin, .SDcols=115]
-setkey(eachN,bin)
-eachN = eachN[sort(bin)]
 
 
-}#Running this beeboop to generate plotting data
-{
-colors = c("red", "orange", "yellow","green","blue", "black")
-plot(range(1:111)/250, range(-.07,.4), type='n')
-for(b in 1:nrow(mems)){
-  ones = c(t(mems[b]))[-1]
-  lines(((1:111)-10)/250, ones[1:111], type='p',col=colors[b])
-  print(paste("mean peak:",ones[112],"mean latency:",ones[113]))
-  Sys.sleep(.7)
-}
-}
 
-#Try putting these on different graphs
-# try looking at first keystroke moment
 
-#try limiting everyone to the same levels that the red novices play on (e.g. only look at levels 1-3)
- 
-#Try to check the variability of individuals in their moments
- #Is variability of moment predicted by level of expertise?
- 
+#look at lots of graphs for individuals
+#Is variability of moment predicted by level of expertise?
+
 #Check replication of Gray and Lindstedt finding to look at zoid recognition differences for skill
- 
 
- #look at subsets of subjects to see who looks at the preview box from the last event
- #Sort the subjects based on the different strategies that we observe
-#Check what these graphs look like if the subjects aren't looking at the top
+
+#look at subsets of subjects to see who looks at the preview box from the last event
+#Sort the subjects based on the different strategies that we observe
+#Check what these graphs look like if the subjects aren't looking at the 
+
+#individuals have frequency (Roussel idea)
+
+#check newZoid - iZoid
+
+#Check RTs and check IIT of RTs
+#reduce the number of corrections I'm making

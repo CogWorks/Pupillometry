@@ -77,9 +77,6 @@ empty_board <- paste("'[",paste(rep(paste("[",paste(rep(0,10),collapse=", "),"]"
 rdaTetrisLog2 <- function(sid=NULL,assessment=1, debug=FALSE, f=NULL,meta2=F, screen.res.width=NULL, screen.res.height=NULL, data.file=NULL) {
   
   if(is.null(data.file)){
-
-      pid = sid
-      
       
       try(d <- fread(f,sep="\t", sep2=",", header = T, showProgress = F, na.strings=c("NA","", "None"), fill=TRUE), silent = TRUE) #TODO: determine if "Fill" screws things up
       if(!"ts" %in% names(d)){ #TODO: figure out why we are reading twice
@@ -264,7 +261,7 @@ rdaTetrisLog2 <- function(sid=NULL,assessment=1, debug=FALSE, f=NULL,meta2=F, sc
   
   assessment = 1
   if(is.null(data.file)){
-    saveRDS(d, file=file.path(new_data, "rds", sprintf("%s.a%d.rds", pid, assessment)), compress=TRUE)
+    saveRDS(d, file=file.path(new_data, "rds", sprintf("%s.a%d.rds", sid, assessment)), compress=TRUE)
     invisible(d)
   }else{
     return(d)
@@ -279,11 +276,12 @@ criterionScore <- function(filename){ #A little irritated cuz I could get it fro
     games = fread(filename, sep="\t")
     crit = mean(tail(sort(games$score),4))
   }) #Hardcoded definition of criterion score)
+  return(crit)
 }
 
 
 jankRatio <- function(diams){
-  jank = length(which(is.na(diams)))/length(diams)
+  jank = (length(which(is.na(diams)))+length(which(diams==0)))/length(diams)
   return(jank)
 }
 

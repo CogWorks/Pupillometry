@@ -22,8 +22,9 @@
 #     all 4 smi diameters
 #Output: returns diameters baseline corrected
 subBaseCorrect <- function(rda, samplesFromBegin = 50, samplesFromEnd = 10){
-  newDiams = lumCorrect(rda)
-  newDiams = NAblinks(newDiams)
+  #newDiams = lumCorrect(rda)
+  #newDiams = NAblinks(newDiams)
+  newDiams = NAblinks(rda[,smi_diam_x_l])
   gNumbers = rda$game_number
   
   #Commented out first-zoid baseline correction 
@@ -44,30 +45,27 @@ subBaseCorrect <- function(rda, samplesFromBegin = 50, samplesFromEnd = 10){
   #   newDiams[gInds] = gDiams
   # }
   
+  #Commented out luminance correction and whole-game baseline
   #Currently using whole-game baseline correction
-  for (g in unique(gNumbers)) {
-    gInds = which(gNumbers == g) #TODO: Is this too slow? I can write a function to scan instead
-    gDiams = newDiams[gInds]
-
-    gDiams = gDiams - mean(gDiams, na.rm = T)
-    newDiams[gInds] = gDiams
-  }
+  # for (g in unique(gNumbers)) {
+  #   gInds = which(gNumbers == g) #TODO: Is this too slow? I can write a function to scan instead
+  #   gDiams = newDiams[gInds]
+  # 
+  #   gDiams = gDiams - mean(gDiams, na.rm = T)
+  #   newDiams[gInds] = gDiams
+  # }
   
   return(newDiams)
 }
 
 
 #Correct for luminance using constants and Crawford and Bouma
-#Interpolate between 3 luminance values for the setup
-# Empty/Start screen
-# Half full screen
-# Entirely / nearly entirely full screen
+#Interpolate between 5 luminance values for the setup
 #First create a lookup table: zoidFullness -> luminance
 #Build lookup table for luminance correction
 #Hardcoded luminance values from setup of Cogworks Lab Popluation Study 2014-2019
 C = c(20.61, 20.90, 21.19, 21.48, 21.77) #candela
   #c(35.5,36,36.5,37,37.5) #lux at 30cm
-#TODO: These are lux, convert to candela
 
 Z = c(0,50,100,150,200) #onscreen zoids
 a = 30 #degrees
@@ -132,7 +130,6 @@ boardSum <- function(boardString){
 #Output: Vector of new diameters
 NAblinks <- function(oldDiams,samplesToKill=50,notAblink = 10){
   n = length(oldDiams)
-  #oldDiams[which(oldDiams <= blinkThreshold)] = NA #might be inefficient but kills NA to 0
   newDiams = oldDiams 
   s = 1
   while(s<n){

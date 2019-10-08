@@ -1,14 +1,7 @@
-#given an RDA, we want to be able to summarize features
-#To make this happen, we need a structure that can hold the appropriate data
-#
-
-#Note that these before and after thingies are in units of 250 Hz
-#     i.e. after=100 will give 1s after 
 Hz = 250
 
-#Nah, curently in use
 #For each moment in each bin
-# For each S
+# For each Subject
 #  grab all moments
 #  calculate all the features for each moment
 #  average all these feaures
@@ -31,28 +24,38 @@ Hz = 250
 momentWindows <- function(rda,target,before=10,after=100){
   diams = subset(rda,event_type=="EYE_SAMP",diams)$diams
   diamTs = subset(rda,event_type=="EYE_SAMP",ts)$ts
-  momeTS = chooseMome(rda,target)
-  momeInds = nearIndices(momeTS,diamTs)
   
+  momeTs = chooseMome(rda,target)
+  momeInds = nearIndices(momeTs,diamTs)
+  momeRs = c() #We use this to count only the ones we care about for tracking level
   
   momes = data.frame(matrix(ncol=before+after+1,nrow=0))
   if(length(momeInds)<=1){
     print("no moments")
-    return(momes)
-  }
-
-  
-  n = length(momeInds)
-  for (i in 1:n){
-    mw = momentWindow(diams, diamTs, momeInds[i], before, after)
-    mw = mw-mean(mw)  #TODO: I'm also doing another correction  here, which I'm not sure is necessary   
-    if(anyNA(mw)){
-      #print("sad")
-      # We are sad because we are losing data
-    } else{
-      momes = rbind(momes,mw)
+  } else {
+    
+    n = length(momeInds)
+    for (i in 1:n){
+      mw = momentWindow(diams, diamTs, momeInds[i], before, after)
+      mw = mw-mean(mw)  #TODO: I'm also doing another correction  here, which I'm not sure is necessary   
+      if(anyNA(mw)){
+        #print("sad")
+        # We are sad because we are losing data
+      } else{
+        momes = rbind(momes,mw)      #Such that any column of momes is the same length as momeRs
+        momeRs = c(momeRs,momeTs[i]) #momeRs is the timestamps of the moments we keep
+      }
     }
   }
+  levels = subset(rda,event_type=="GAME_EVENT",c(level,ts))
+  levelTs = levels$ts
+  levels = levels$level
+  levels = levels[nearIndices(momeRs,levelTs)]
+  
+  crit = rda$criterion[1]
+  momes = cbind(momes,levels)
+  momes = cbind(momes,crit=rep(crit,length(levels)))
+  
   return(momes)
 }
 
@@ -67,43 +70,6 @@ momeAvgRDA <- function(rda,target,before=10,after=100){
   return(momentAverages(diams,diamTs, momeInds, before=before,after=after))
 }
 
-
-
-# #Currently not in 
-# #Calculate averages for all moment occurrences of a given subject
-# #Input: vector of diameters (ONLY EyE SAMPLES)
-# #       vector of eye timestamps
-# #       vector of occurrences
-# #       optional: number of samples before moment that will be in window
-# #       optional: number of samples after moment that will be in window
-# #Output: moment averages
-# #        feature averages
-# momentAverages <- function(diams, diamTs, momeInds, before=10,after=100){#TODO: pick before and after defaults carefully
-#   if(length(momeInds)<=1){
-#     print("no moments")
-#      return(list(mAvg=rep(NA,before+after+1),fAvg=c(NA,NA),n=0))
-#   }
-#   mAvg = rep(0,before+after+1)
-#   fAvg = rep(0,2) #TODO: remove hardcode here
-#   used = 0
-# 
-#   n = length(momeInds)
-#   for (i in 1:n){
-#     mw = momentWindow(diams, diamTs, momeInds[i], before, after)
-#      if(anyNA(mw)){
-#        #print("sad")
-#        # We are sad because we are losing data
-#      } else{
-#        used = used + 1
-#        mAvg = mAvg + mw
-#        f = features(mw,before) #TODO: Write more features functions
-#        fAvg = fAvg + f
-#      }
-#   }
-#   mAvg = mAvg/used #If we're getting Infs here, do modulo average calculations
-#   fAvg = fAvg/used
-#   return(list(mAvg=mAvg,fAvg=fAvg,n=used))
-# }
 
 #Grab a moment window and force it to be n samples of 250hz
 #Input: vector of diameters (ONLY EyE SAMPLES)

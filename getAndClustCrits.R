@@ -15,15 +15,18 @@ for (i in 1:nS){
   if(file.exists(gamesF)){
     games = fread(gamesF, sep="\t")
     tryCatch({
-      
-        crits = c(crits,mean(tail(sort(games$score),4)))
-    }) #Hardcoded definition of criterion score)
+      crit = mean(tail(sort(games$score),4))
+      crits = c(crits,crit)
+    }) #Hardcoded definition of criterion score
   }
   
   
 }
 
 k = 4
-classIntervals(sort(crits),k,style="jenks")
+cd = classIntervals(sort(crits),k,style="jenks")
 hist(crits)
+hist(crits,breaks = cd$brks)
+cd$brks
+
 length(crits)
